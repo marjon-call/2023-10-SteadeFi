@@ -44,7 +44,7 @@ library GMXEmergency {
     * @notice @inheritdoc GMXVault
     * @param self GMXTypes.Store
   */
-  function emergencyPause(
+  function emergencyPause( //@audit no access control
     GMXTypes.Store storage self
   ) external {
     self.refundee = payable(msg.sender);
@@ -97,7 +97,7 @@ library GMXEmergency {
   function processEmergencyResume(
     GMXTypes.Store storage self
   ) external {
-    GMXChecks.beforeProcessEmergencyResumeChecks(self);
+    GMXChecks.beforeProcessEmergencyResumeChecks(self); // @audit can we make this fail? 
 
     self.status = GMXTypes.Status.Open;
 
@@ -168,7 +168,7 @@ library GMXEmergency {
 
     // to avoid leaving dust behind
     unchecked {
-      if (_userShareBalance - shareAmt < DUST_AMOUNT) {
+      if (_userShareBalance - shareAmt < DUST_AMOUNT) { //@audit underflow
         shareAmt = _userShareBalance;
       }
     }
@@ -177,15 +177,15 @@ library GMXEmergency {
 
     // share ratio calculation must be before burn()
     uint256 _shareRatio = shareAmt * SAFE_MULTIPLIER
-                          / IERC20(address(self.vault)).totalSupply();
+                          / IERC20(address(self.vault)).totalSupply(); //@audit division
 
     self.vault.burn(msg.sender, shareAmt);
 
     uint256 _withdrawAmtTokenA = _shareRatio
-                                 * self.tokenA.balanceOf(address(this))
+                                 * self.tokenA.balanceOf(address(this)) //@audit division
                                  / SAFE_MULTIPLIER;
     uint256 _withdrawAmtTokenB = _shareRatio
-                                 * self.tokenB.balanceOf(address(this))
+                                 * self.tokenB.balanceOf(address(this)) //@audit division
                                  / SAFE_MULTIPLIER;
 
     self.tokenA.safeTransfer(msg.sender, _withdrawAmtTokenA);

@@ -13,6 +13,7 @@ import { GMXReader } from "./GMXReader.sol";
 import { GMXChecks } from "./GMXChecks.sol";
 import { GMXManager } from "./GMXManager.sol";
 import { GMXProcessDeposit } from "./GMXProcessDeposit.sol";
+import { console } from "forge-std/console.sol";
 
 /**
   * @title GMXDeposit
@@ -46,6 +47,21 @@ library GMXDeposit {
 
   /* ================== MUTATIVE FUNCTIONS =================== */
 
+  /*
+    struct DepositParams {
+      // Address of token depositing; can be tokenA, tokenB or lpToken
+      address token;
+      // Amount of token to deposit in token decimals
+      uint256 amt;
+      // Minimum amount of shares to receive in 1e18
+      uint256 minSharesAmt;
+      // Slippage tolerance for adding liquidity; e.g. 3 = 0.03%
+      uint256 slippage;
+      // Execution fee sent to GMX for adding liquidity
+      uint256 executionFee;
+    }
+  *\
+
   /**
     * @notice @inheritdoc GMXVault
     * @param self GMXTypes.Store
@@ -56,32 +72,39 @@ library GMXDeposit {
     GMXTypes.DepositParams memory dp,
     bool isNative
   ) external {
+    console.log("beginning : ",dp.amt);
     // Sweep any tokenA/B in vault to the temporary trove for future compouding and to prevent
     // it from being considered as part of depositor's assets
-    if (self.tokenA.balanceOf(address(this)) > 0) {
-      self.tokenA.safeTransfer(self.trove, self.tokenA.balanceOf(address(this)));
+    if (self.tokenA.balanceOf(address(this)) > 0) { 
+      self.tokenA.safeTransfer(self.trove, self.tokenA.balanceOf(address(this))); 
     }
     if (self.tokenB.balanceOf(address(this)) > 0) {
       self.tokenB.safeTransfer(self.trove, self.tokenB.balanceOf(address(this)));
-    }
+    } //@audit what about LP token?
 
     self.refundee = payable(msg.sender);
 
     GMXTypes.HealthParams memory _hp;
 
-    _hp.equityBefore = GMXReader.equityValue(self);
-    _hp.lpAmtBefore = GMXReader.lpAmt(self);
-    _hp.debtRatioBefore = GMXReader.debtRatio(self);
-    _hp.deltaBefore = GMXReader.delta(self);
+    // @audit check for weird return values
+    _hp.equityBefore = GMXReader.equityValue(self); // calcs LP value - vaults debt value
+    _hp.lpAmtBefore = GMXReader.lpAmt(self); // balance of LP tokens in vault
+    _hp.debtRatioBefore = GMXReader.debtRatio(self); // either 0 or total debt to lending vault * 1e18 / LP token price (0 or price in 1e18)
+    _hp.deltaBefore = GMXReader.delta(self); // +/- debt delta
+    //@audit does not set svTokenValueBefore 
+
+    console.log("After hp : ",dp.amt);
 
     // Transfer assets from user to vault
     if (isNative) {
-      GMXChecks.beforeNativeDepositChecks(self, dp);
+      GMXChecks.beforeNativeDepositChecks(self, dp); //@audit what if we send native without wnt as address?
 
-      self.WNT.deposit{ value: dp.amt }();
+      self.WNT.deposit{ value: dp.amt }(); 
     } else {
       IERC20(dp.token).safeTransferFrom(msg.sender, address(this), dp.amt);
     }
+
+    console.log("after transfer native : ",dp.amt);
 
     GMXTypes.DepositCache memory _dc;
 
@@ -89,7 +112,7 @@ library GMXDeposit {
 
     if (dp.token == address(self.lpToken)) {
       // If LP token deposited
-      _dc.depositValue = self.gmxOracle.getLpTokenValue(
+      _dc.depositValue = self.gmxOracle.getLpTokenValue( //price 1e18 or 0
         address(self.lpToken),
         address(self.tokenA),
         address(self.tokenA),
@@ -98,21 +121,29 @@ library GMXDeposit {
         false
       )
       * dp.amt
-      / SAFE_MULTIPLIER;
+      / SAFE_MULTIPLIER; //@audit division
     } else {
       // If tokenA or tokenB deposited
-      _dc.depositValue = GMXReader.convertToUsdValue(
+      _dc.depositValue = GMXReader.convertToUsdValue( //@audit check if this is proper
         self,
         address(dp.token),
         dp.amt
       );
     }
+    console.log("_dc : ", _dc.depositValue);
+    
     _dc.depositParams = dp;
     _dc.healthParams = _hp;
 
     self.depositCache = _dc;
 
+    console.log("_dc amount : ", self.depositCache.depositParams.amt);
+
+    console.log("before check : ",dp.amt);
+
     GMXChecks.beforeDepositChecks(self, _dc.depositValue);
+
+    console.log("after check : ",dp.amt);
 
     self.status = GMXTypes.Status.Deposit;
 
@@ -122,30 +153,33 @@ library GMXDeposit {
     (
       uint256 _borrowTokenAAmt,
       uint256 _borrowTokenBAmt
-    ) = GMXManager.calcBorrow(self, _dc.depositValue);
+    ) = GMXManager.calcBorrow(self, _dc.depositValue); //@audit dig deeper (could lead to 0 as no checks after)
 
     _dc.borrowParams.borrowTokenAAmt = _borrowTokenAAmt;
     _dc.borrowParams.borrowTokenBAmt = _borrowTokenBAmt;
 
-    GMXManager.borrow(self, _borrowTokenAAmt, _borrowTokenBAmt);
+    GMXManager.borrow(self, _borrowTokenAAmt, _borrowTokenBAmt);  //@audit no check if 0
 
     GMXTypes.AddLiquidityParams memory _alp;
 
     _alp.tokenAAmt = self.tokenA.balanceOf(address(this));
     _alp.tokenBAmt = self.tokenB.balanceOf(address(this));
-    _alp.minMarketTokenAmt = GMXManager.calcMinMarketSlippageAmt(
+    _alp.minMarketTokenAmt = GMXManager.calcMinMarketSlippageAmt( //@audit fuzz this, could be 0
       self,
       _dc.depositValue,
       dp.slippage
     );
     _alp.executionFee = dp.executionFee;
-
+    console.log("makes it to manager");
     _dc.depositKey = GMXManager.addLiquidity(
       self,
       _alp
     );
+    console.log("makes it past manager");
 
     self.depositCache = _dc;
+
+
 
     emit DepositCreated(
       _dc.user,
@@ -179,7 +213,7 @@ library GMXDeposit {
         self.depositCache.healthParams.equityBefore,
         self.depositCache.healthParams.equityAfter
       );
-    } catch (bytes memory reason) {
+    } catch (bytes memory reason) { //@audit DOS?
       self.status = GMXTypes.Status.Deposit_Failed;
 
       emit DepositFailed(reason);

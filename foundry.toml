@@ -5,6 +5,10 @@ libs = ['lib']
 test = 'test'
 cache_path = 'forge-cache'
 
+
+[fuzz]
+runs = 2000
+
 [invariant]
 runs = 1000
 depth = 32

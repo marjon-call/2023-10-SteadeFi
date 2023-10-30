@@ -55,21 +55,21 @@ library GMXWithdraw {
 
     GMXTypes.HealthParams memory _hp;
 
-    _hp.equityBefore = GMXReader.equityValue(self);
-    _hp.lpAmtBefore = GMXReader.lpAmt(self);
-    _hp.debtRatioBefore = GMXReader.debtRatio(self);
-    _hp.deltaBefore = GMXReader.delta(self);
+    _hp.equityBefore = GMXReader.equityValue(self); // calcs LP value - vaults debt value
+    _hp.lpAmtBefore = GMXReader.lpAmt(self); // balance of LP tokens in vault
+    _hp.debtRatioBefore = GMXReader.debtRatio(self); // either 0 or total debt to lending vault * 1e18 / LP token price (0 or price in 1e18)
+    _hp.deltaBefore = GMXReader.delta(self); // +/- debt delta
 
     GMXTypes.WithdrawCache memory _wc;
 
     _wc.user = payable(msg.sender);
 
     _wc.shareRatio = wp.shareAmt
-      * SAFE_MULTIPLIER
-      / IERC20(address(self.vault)).totalSupply();
+      * SAFE_MULTIPLIER 
+      / IERC20(address(self.vault)).totalSupply(); // @audit division
     _wc.lpAmt = _wc.shareRatio
       * GMXReader.lpAmt(self)
-      / SAFE_MULTIPLIER;
+      / SAFE_MULTIPLIER;  // @audit division
     _wc.withdrawValue = _wc.lpAmt
       * self.gmxOracle.getLpTokenValue(
         address(self.lpToken),
@@ -79,7 +79,7 @@ library GMXWithdraw {
         false,
         false
       )
-      / SAFE_MULTIPLIER;
+      / SAFE_MULTIPLIER;  // @audit division
 
     _wc.withdrawParams = wp;
     _wc.healthParams = _hp;
@@ -113,7 +113,7 @@ library GMXWithdraw {
       uint256 _lpAmtToRemove = _wc.lpAmt
         * (self.leverage - SAFE_MULTIPLIER)
         / self.leverage
-        * 10200 / 10000;
+        * 10200 / 10000; //@audit division
 
       _wc.tokensToUser = _wc.lpAmt - _lpAmtToRemove;
       _wc.lpAmt = _lpAmtToRemove;
@@ -179,7 +179,7 @@ library GMXWithdraw {
       // If native token is being withdrawn, we convert wrapped to native
       if (self.withdrawCache.withdrawParams.token == address(self.WNT)) {
         self.WNT.withdraw(self.withdrawCache.tokensToUser);
-        (bool success, ) = self.withdrawCache.user.call{value: address(this).balance}("");
+        (bool success, ) = self.withdrawCache.user.call{value: address(this).balance}(""); //@audit external call !!! No reentrancy guard !!!
         require(success, "Transfer failed.");
       } else {
         // Transfer requested withdraw asset to user

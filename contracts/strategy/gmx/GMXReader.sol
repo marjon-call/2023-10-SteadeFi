@@ -6,6 +6,8 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { GMXTypes } from "./GMXTypes.sol";
 
+import { console } from "forge-std/console.sol";
+
 /**
   * @title GMXReader
   * @author Steadefi
@@ -27,8 +29,8 @@ library GMXReader {
   function svTokenValue(GMXTypes.Store storage self) public view returns (uint256) {
     uint256 equityValue_ = equityValue(self);
     uint256 totalSupply_ = IERC20(address(self.vault)).totalSupply();
-    if (equityValue_ == 0 || totalSupply_ == 0) return SAFE_MULTIPLIER;
-    return equityValue_ * SAFE_MULTIPLIER / totalSupply_;
+    if (equityValue_ == 0 || totalSupply_ == 0) return SAFE_MULTIPLIER; //@audit why return this?
+    return equityValue_ * SAFE_MULTIPLIER / totalSupply_; // @audit what if low total supply
   }
 
   /**
@@ -38,7 +40,7 @@ library GMXReader {
   function pendingFee(GMXTypes.Store storage self) public view returns (uint256) {
     uint256 totalSupply_ = IERC20(address(self.vault)).totalSupply();
     uint256 _secondsFromLastCollection = block.timestamp - self.lastFeeCollected;
-    return (totalSupply_ * self.feePerSecond * _secondsFromLastCollection) / SAFE_MULTIPLIER;
+    return (totalSupply_ * self.feePerSecond * _secondsFromLastCollection) / SAFE_MULTIPLIER; // @audit division
   }
 
   /**
@@ -52,7 +54,7 @@ library GMXReader {
   ) public view returns (uint256) {
     uint256 _sharesSupply = IERC20(address(self.vault)).totalSupply() + pendingFee(self);
     if (_sharesSupply == 0 || currentEquity == 0) return value;
-    return value * _sharesSupply / currentEquity;
+    return value * _sharesSupply / currentEquity; // @audit division
   }
 
   /**
@@ -66,7 +68,7 @@ library GMXReader {
   ) public view returns (uint256) {
     return amt * 10**(18 - IERC20Metadata(token).decimals())
                 * self.chainlinkOracle.consultIn18Decimals(token)
-                / SAFE_MULTIPLIER;
+                / SAFE_MULTIPLIER; // @audit division && decimals optional && oracle wrong?
   }
 
   /**
@@ -75,7 +77,7 @@ library GMXReader {
   */
   function tokenWeights(GMXTypes.Store storage self) public view returns (uint256, uint256) {
     // Get amounts of tokenA and tokenB in liquidity pool in token decimals
-    (uint256 _reserveA, uint256 _reserveB) = self.gmxOracle.getLpTokenReserves(
+    (uint256 _reserveA, uint256 _reserveB) = self.gmxOracle.getLpTokenReserves( //@audit what if oracle wrong
       address(self.lpToken),
       address(self.tokenA),
       address(self.tokenA),
@@ -90,7 +92,7 @@ library GMXReader {
 
     return (
       _tokenAValue * SAFE_MULTIPLIER / _totalLpValue,
-      _tokenBValue * SAFE_MULTIPLIER / _totalLpValue
+      _tokenBValue * SAFE_MULTIPLIER / _totalLpValue //@audit division
     );
   }
 
@@ -99,14 +101,14 @@ library GMXReader {
     * @param self GMXTypes.Store
   */
   function assetValue(GMXTypes.Store storage self) public view returns (uint256) {
-    return lpAmt(self) * self.gmxOracle.getLpTokenValue(
+    return lpAmt(self) * self.gmxOracle.getLpTokenValue( //@audit return 0 or price in e18 
       address(self.lpToken),
       address(self.tokenA),
       address(self.tokenA),
       address(self.tokenB),
       false,
       false
-    ) / SAFE_MULTIPLIER;
+    ) / SAFE_MULTIPLIER; //@audit division
   }
 
   /**
@@ -126,11 +128,11 @@ library GMXReader {
     * @param self GMXTypes.Store
   */
   function equityValue(GMXTypes.Store storage self) public view returns (uint256) {
-    (uint256 _tokenADebtAmt, uint256 _tokenBDebtAmt) = debtAmt(self);
+    (uint256 _tokenADebtAmt, uint256 _tokenBDebtAmt) = debtAmt(self); // vaults maximum total repay amount taking into account ongoing interest
 
-    uint256 assetValue_ = assetValue(self);
+    uint256 assetValue_ = assetValue(self); // LP token value (0 or price in 1e18)
 
-    uint256 _debtValue = convertToUsdValue(self, address(self.tokenA), _tokenADebtAmt)
+    uint256 _debtValue = convertToUsdValue(self, address(self.tokenA), _tokenADebtAmt) // debt value (amt * price)
                          + convertToUsdValue(self, address(self.tokenB), _tokenBDebtAmt);
 
     // in underflow condition return 0
@@ -154,7 +156,7 @@ library GMXReader {
     );
 
     return (
-      _reserveA * SAFE_MULTIPLIER * lpAmt(self) / self.lpToken.totalSupply() / SAFE_MULTIPLIER,
+      _reserveA * SAFE_MULTIPLIER * lpAmt(self) / self.lpToken.totalSupply() / SAFE_MULTIPLIER, //@audit division
       _reserveB * SAFE_MULTIPLIER * lpAmt(self) / self.lpToken.totalSupply() / SAFE_MULTIPLIER
     );
   }
@@ -165,7 +167,7 @@ library GMXReader {
   */
   function debtAmt(GMXTypes.Store storage self) public view returns (uint256, uint256) {
     return (
-      self.tokenALendingVault.maxRepay(address(self.vault)),
+      self.tokenALendingVault.maxRepay(address(self.vault)), // Returns a borrower's (vault) maximum total repay amount taking into account ongoing interest
       self.tokenBLendingVault.maxRepay(address(self.vault))
     );
   }
@@ -184,7 +186,7 @@ library GMXReader {
   */
   function leverage(GMXTypes.Store storage self) public view returns (uint256) {
     if (assetValue(self) == 0 || equityValue(self) == 0) return 0;
-    return assetValue(self) * SAFE_MULTIPLIER / equityValue(self);
+    return assetValue(self) * SAFE_MULTIPLIER / equityValue(self); //@audit division
   }
 
   /**
@@ -207,7 +209,7 @@ library GMXReader {
 
     int256 signedDelta = (_unsignedDelta
       * self.chainlinkOracle.consultIn18Decimals(address(self.tokenA))
-      / equityValue_).toInt256();
+      / equityValue_).toInt256(); //@audit division
 
     if (_isPositive) return signedDelta;
     else return -signedDelta;
@@ -218,10 +220,10 @@ library GMXReader {
     * @param self GMXTypes.Store
   */
   function debtRatio(GMXTypes.Store storage self) public view returns (uint256) {
-    (uint256 _tokenADebtValue, uint256 _tokenBDebtValue) = debtValue(self);
+    (uint256 _tokenADebtValue, uint256 _tokenBDebtValue) = debtValue(self); // strat vaults repay amount to lending vault in USD
     if (assetValue(self) == 0) return 0;
-    return (_tokenADebtValue + _tokenBDebtValue) * SAFE_MULTIPLIER / assetValue(self);
-  }
+    return (_tokenADebtValue + _tokenBDebtValue) * SAFE_MULTIPLIER / assetValue(self); //@audit division
+  } 
 
   /**
     * @notice @inheritdoc GMXVault
@@ -232,11 +234,12 @@ library GMXReader {
 
     // Long strategy only borrows short token (typically stablecoin)
     if (self.delta == GMXTypes.Delta.Long) {
+      console.log("token b : ", address(self.tokenB));
       _additionalCapacity = convertToUsdValue(
         self,
         address(self.tokenB),
         self.tokenBLendingVault.totalAvailableAsset()
-      ) * SAFE_MULTIPLIER / (self.leverage - 1e18);
+      ) * SAFE_MULTIPLIER / (self.leverage - 1e18); //@audit division
     }
 
     // Neutral strategy borrows both long (typical volatile) and short token (typically stablecoin)
@@ -259,14 +262,14 @@ library GMXReader {
         address(self.tokenA),
         self.tokenALendingVault.totalAvailableAsset()
       ) * SAFE_MULTIPLIER
-        / (self.leverage * _tokenAWeight / SAFE_MULTIPLIER);
+        / (self.leverage * _tokenAWeight / SAFE_MULTIPLIER); //@audit division
 
       uint256 _maxTokenBLending = convertToUsdValue(
         self,
         address(self.tokenB),
         self.tokenBLendingVault.totalAvailableAsset()
       ) * SAFE_MULTIPLIER
-        / (self.leverage * _tokenAWeight / SAFE_MULTIPLIER)
+        / (self.leverage * _tokenAWeight / SAFE_MULTIPLIER) //@audit division
         - 1e18;
 
       _additionalCapacity = _maxTokenALending > _maxTokenBLending ? _maxTokenBLending : _maxTokenALending;

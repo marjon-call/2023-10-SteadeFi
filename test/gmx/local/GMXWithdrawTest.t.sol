@@ -42,7 +42,13 @@ contract GMXWithdrawTest is GMXMockVaultSetup, GMXTestHelper, TestUtils {
     assertGt(cache.withdrawValue, 0, "withdrawValue should be set");
   }
 
-  function test_processWithdraw() external {
+  function test_processWithdrawU() external {
+
+    GMXTypes.Store memory _store = vault.store();
+
+    console.log("");
+    console.log("status 0 : ", uint256(_store.status));
+    console.log("");
     vm.startPrank(user1);
     _createAndExecuteDeposit(
       address(WETH),
@@ -53,7 +59,24 @@ contract GMXWithdrawTest is GMXMockVaultSetup, GMXTestHelper, TestUtils {
       SLIPPAGE,
       EXECUTION_FEE
     );
+
+    
+    _store = vault.store();
+
+    console.log("");
+    console.log("status 1 : ", uint256(_store.status));
+    console.log("");
+
     _createWithdrawal(address(WETH), 250e18, 0, SLIPPAGE, EXECUTION_FEE);
+
+    console.log("made it here");
+
+    _store = vault.store();
+
+    console.log("");
+    console.log("status 2 : ", uint256(_store.status));
+    console.log("");
+
 
     // state before
     (uint256 debtABefore, uint256 debtBBefore) = vault.debtValue();
@@ -69,6 +92,12 @@ contract GMXWithdrawTest is GMXMockVaultSetup, GMXTestHelper, TestUtils {
       address(callback)
     );
 
+    _store = vault.store();
+
+    console.log("");
+    console.log("status 3 : ", uint256(_store.status));
+    console.log("");
+
     require(uint256(vault.store().status) == 0, "status should be reset to open");
     require(vault.balanceOf(address(user1)) < userSvTokenBalanceBefore, "user should have less svToken balance");
     require(IERC20(WETH).balanceOf(address(user1)) >= userABalanceBefore, "user should have more WETH balance");
@@ -77,6 +106,12 @@ contract GMXWithdrawTest is GMXMockVaultSetup, GMXTestHelper, TestUtils {
     if(debtABefore > 0) require(debtAAfter < debtABefore, "debtA should be less");
     if(debtBBefore > 0) require(debtBAfter < debtBBefore, "debtB should be less");
     require(roughlyEqual(vault.store().leverage, vault.leverage(), 1e17), "leverage should be 3");
+
+    _store = vault.store();
+
+    console.log("");
+    console.log("status 4 : ", uint256(_store.status));
+    console.log("");
   }
 
   function test_processWithdrawCancel() external {

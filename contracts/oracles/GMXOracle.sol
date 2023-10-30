@@ -98,7 +98,7 @@ contract GMXOracle {
       tokenIn,
       amountIn,
       _uiFeeReceiver
-    );
+    ); //@audit verify data
 
     return _amountsOut;
   }
@@ -131,7 +131,7 @@ contract GMXOracle {
       shortToken,
       tokenOut,
       amountsOut
-    ) * (1e18 + 15e14) / SAFE_MULTIPLIER;
+    ) * (1e18 + 15e14) / SAFE_MULTIPLIER; //@audit division
   }
 
   /**

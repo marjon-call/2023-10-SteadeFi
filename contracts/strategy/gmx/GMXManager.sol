@@ -72,7 +72,7 @@ library GMXManager {
     uint256 depositValue
   ) external view returns (uint256, uint256) {
     // Calculate final position value based on deposit value
-    uint256 _positionValue = depositValue * self.leverage / SAFE_MULTIPLIER;
+    uint256 _positionValue = depositValue * self.leverage / SAFE_MULTIPLIER; //@audit division
 
     // Obtain the value to borrow
     uint256 _borrowValue = _positionValue - depositValue;
@@ -86,7 +86,7 @@ library GMXManager {
     if (self.delta == GMXTypes.Delta.Long) {
       _borrowShortTokenAmt = _borrowValue * SAFE_MULTIPLIER
                              / GMXReader.convertToUsdValue(self, address(self.tokenB), 10**(_tokenBDecimals))
-                             / (10 ** (18 - _tokenBDecimals));
+                             / (10 ** (18 - _tokenBDecimals)); //@audit division
     }
 
     // If delta is neutral, borrow appropriate amount in long token to hedge, and the rest in short token
@@ -95,17 +95,17 @@ library GMXManager {
       (uint256 _tokenAWeight,) = GMXReader.tokenWeights(self);
 
       // Get value of long token (typically tokenA)
-      uint256 _longTokenWeightedValue = _tokenAWeight * _positionValue / SAFE_MULTIPLIER;
+      uint256 _longTokenWeightedValue = _tokenAWeight * _positionValue / SAFE_MULTIPLIER; //@audit division
 
       // Borrow appropriate amount in long token to hedge
       _borrowLongTokenAmt = _longTokenWeightedValue * SAFE_MULTIPLIER
                             / GMXReader.convertToUsdValue(self, address(self.tokenA), 10**(_tokenADecimals))
-                            / (10 ** (18 - _tokenADecimals));
+                            / (10 ** (18 - _tokenADecimals)); //@audit division
 
       // Borrow the shortfall value in short token
       _borrowShortTokenAmt = (_borrowValue - _longTokenWeightedValue) * SAFE_MULTIPLIER
                              / GMXReader.convertToUsdValue(self, address(self.tokenB), 10**(_tokenBDecimals))
-                             / (10 ** (18 - _tokenBDecimals));
+                             / (10 ** (18 - _tokenBDecimals)); //@audit division
     }
 
     return (_borrowLongTokenAmt, _borrowShortTokenAmt);
@@ -122,8 +122,8 @@ library GMXManager {
   ) external view returns (uint256, uint256) {
     (uint256 tokenADebtAmt, uint256 tokenBDebtAmt) = GMXReader.debtAmt(self);
 
-    uint256 _repayTokenAAmt = shareRatio * tokenADebtAmt / SAFE_MULTIPLIER;
-    uint256 _repayTokenBAmt = shareRatio * tokenBDebtAmt / SAFE_MULTIPLIER;
+    uint256 _repayTokenAAmt = shareRatio * tokenADebtAmt / SAFE_MULTIPLIER; //@audit division
+    uint256 _repayTokenBAmt = shareRatio * tokenBDebtAmt / SAFE_MULTIPLIER; //@audit division
 
     return (_repayTokenAAmt, _repayTokenBAmt);
   }
@@ -140,7 +140,7 @@ library GMXManager {
     uint256 depositValue,
     uint256 slippage
   ) external view returns (uint256) {
-    uint256 _lpTokenValue = self.gmxOracle.getLpTokenValue(
+    uint256 _lpTokenValue = self.gmxOracle.getLpTokenValue( //@audit verify oracle price is correct
       address(self.lpToken),
       address(self.tokenA),
       address(self.tokenA),
@@ -152,7 +152,7 @@ library GMXManager {
     return depositValue
       * SAFE_MULTIPLIER
       / _lpTokenValue
-      * (10000 - slippage) / 10000;
+      * (10000 - slippage) / 10000; //@audit division
   }
 
   /**
@@ -175,7 +175,7 @@ library GMXManager {
     uint256 slippage
   ) external view returns (uint256, uint256) {
     uint256 _withdrawValue = lpAmt
-      * self.gmxOracle.getLpTokenValue(
+      * self.gmxOracle.getLpTokenValue( //@audit verify oracle price is correct
         address(self.lpToken),
         address(self.tokenA),
         address(self.tokenA),
@@ -195,7 +195,7 @@ library GMXManager {
         minLongToken,
         10**(IERC20Metadata(minLongToken).decimals())
       )
-      / (10 ** (18 - IERC20Metadata(minLongToken).decimals()));
+      / (10 ** (18 - IERC20Metadata(minLongToken).decimals())); //@audit division
 
     uint256 _minShortTokenAmt = _withdrawValue
       * _tokenBWeight / SAFE_MULTIPLIER
@@ -205,11 +205,11 @@ library GMXManager {
         minShortToken,
         10**(IERC20Metadata(minShortToken).decimals())
       )
-      / (10 ** (18 - IERC20Metadata(minShortToken).decimals()));
+      / (10 ** (18 - IERC20Metadata(minShortToken).decimals())); //@audit division
 
     return (
-      _minLongTokenAmt * (10000 - slippage) / 10000,
-      _minShortTokenAmt * (10000 - slippage) / 10000
+      _minLongTokenAmt * (10000 - slippage) / 10000, //@audit division
+      _minShortTokenAmt * (10000 - slippage) / 10000 //@audit division
     );
   }
 
@@ -226,7 +226,7 @@ library GMXManager {
     GMXTypes.Store storage self,
     uint256 borrowTokenAAmt,
     uint256 borrowTokenBAmt
-  ) public {
+  ) public { 
     if (borrowTokenAAmt > 0) {
       self.tokenALendingVault.borrow(borrowTokenAAmt);
     }

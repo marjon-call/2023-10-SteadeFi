@@ -10,6 +10,7 @@ import { IRoleStore } from "../../interfaces/protocols/gmx/IRoleStore.sol";
 import { IGMXVault } from "../../interfaces/strategy/gmx/IGMXVault.sol";
 import { Errors } from "../../utils/Errors.sol";
 import { GMXTypes } from "./GMXTypes.sol";
+import { console } from "forge-std/console.sol";
 
 /**
   * @title GMXCallback
@@ -59,6 +60,7 @@ contract GMXCallback is IDepositCallbackReceiver, IWithdrawalCallbackReceiver {
     IDeposit.Props memory /* depositProps */,
     IEvent.Props memory /* eventData */
   ) external onlyController {
+    console.log("worked");
     GMXTypes.Store memory _store = vault.store();
 
     if (

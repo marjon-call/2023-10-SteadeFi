@@ -111,7 +111,7 @@ library GMXRebalance {
         self.rebalanceCache.healthParams.svTokenValueBefore,
         GMXReader.svTokenValue(self)
       );
-    } catch (bytes memory reason) {
+    } catch (bytes memory reason) { //@audit DOS? 
       self.status = GMXTypes.Status.Rebalance_Open;
 
       emit RebalanceOpen(

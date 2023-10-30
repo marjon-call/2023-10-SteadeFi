@@ -10,6 +10,7 @@ import { GMXTestHelper } from "./GMXTestHelper.sol";
 import { IDeposit } from "../../../contracts/interfaces/protocols/gmx/IDeposit.sol";
 import { IEvent } from "../../../contracts/interfaces/protocols/gmx/IEvent.sol";
 
+
 contract GMXDepositTest is GMXMockVaultSetup, GMXTestHelper, TestUtils {
   function test_createDeposit() external {
     vm.startPrank(user1);

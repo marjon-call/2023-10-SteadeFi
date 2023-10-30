@@ -67,7 +67,7 @@ contract GMXVault is ERC20, Ownable2Step, ReentrancyGuard, IGMXVault, IGMXVaultE
   constructor (
     string memory name,
     string memory symbol,
-    GMXTypes.Store memory store_
+    GMXTypes.Store memory store_ //@audit name collsion
   ) ERC20(name, symbol) Ownable(msg.sender) {
     _store.leverage = uint256(store_.leverage);
     _store.delta = store_.delta;
@@ -294,11 +294,26 @@ contract GMXVault is ERC20, Ownable2Step, ReentrancyGuard, IGMXVault, IGMXVaultE
 
   /* ================== MUTATIVE FUNCTIONS =================== */
 
+ /*
+  struct DepositParams {
+    // Address of token depositing; can be tokenA, tokenB or lpToken
+    address token;
+    // Amount of token to deposit in token decimals
+    uint256 amt;
+    // Minimum amount of shares to receive in 1e18
+    uint256 minSharesAmt;
+    // Slippage tolerance for adding liquidity; e.g. 3 = 0.03%
+    uint256 slippage;
+    // Execution fee sent to GMX for adding liquidity
+    uint256 executionFee;
+  }
+  *\
+
   /**
     * @notice Deposit a whitelisted asset into vault and mint strategy vault share tokens to user
     * @param dp GMXTypes.DepositParams
   */
-  function deposit(GMXTypes.DepositParams memory dp) external payable nonReentrant {
+  function deposit(GMXTypes.DepositParams memory dp) external payable nonReentrant { //@audit no validation
     GMXDeposit.deposit(_store, dp, false);
   }
 
@@ -307,7 +322,7 @@ contract GMXVault is ERC20, Ownable2Step, ReentrancyGuard, IGMXVault, IGMXVaultE
     * @notice This function is only function if vault accepts native token
     * @param dp GMXTypes.DepositParams
   */
-  function depositNative(GMXTypes.DepositParams memory dp) external payable nonReentrant {
+  function depositNative(GMXTypes.DepositParams memory dp) external payable nonReentrant { //@audit no validation
     GMXDeposit.deposit(_store, dp, true);
   }
 
@@ -315,7 +330,7 @@ contract GMXVault is ERC20, Ownable2Step, ReentrancyGuard, IGMXVault, IGMXVaultE
     * @notice Withdraws a whitelisted asset from vault and burns strategy vault share tokens from user
     * @param wp GMXTypes.WithdrawParams
   */
-  function withdraw(GMXTypes.WithdrawParams memory wp) external payable nonReentrant {
+  function withdraw(GMXTypes.WithdrawParams memory wp) external payable nonReentrant { //@audit no validation
     GMXWithdraw.withdraw(_store, wp);
   }
 
@@ -324,14 +339,14 @@ contract GMXVault is ERC20, Ownable2Step, ReentrancyGuard, IGMXVault, IGMXVaultE
     svToken from user while withdrawing assets from vault to user
     * @param shareAmt Amount of vault token shares to withdraw in 1e18
   */
-  function emergencyWithdraw(uint256 shareAmt) external nonReentrant {
+  function emergencyWithdraw(uint256 shareAmt) external nonReentrant { //@audit no validation
     GMXEmergency.emergencyWithdraw(_store, shareAmt);
   }
 
   /**
     * @notice Mint vault token shares as management fees to protocol treasury
   */
-  function mintFee() public {
+  function mintFee() public { //@audit no validation. Can we devalue tf out of it
     _mint(_store.treasury, GMXReader.pendingFee(_store));
     _store.lastFeeCollected = block.timestamp;
   }
@@ -696,7 +711,7 @@ contract GMXVault is ERC20, Ownable2Step, ReentrancyGuard, IGMXVault, IGMXVaultE
   */
   receive() external payable {
     if (msg.sender == _store.depositVault || msg.sender == _store.withdrawalVault) {
-      (bool success, ) = _store.refundee.call{value: address(this).balance}("");
+      (bool success, ) = _store.refundee.call{value: address(this).balance}(""); //@audit external call
       require(success, "Transfer failed.");
     }
   }

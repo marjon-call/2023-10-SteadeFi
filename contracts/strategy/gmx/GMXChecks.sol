@@ -9,6 +9,7 @@ import { IOrder } from "../../interfaces/protocols/gmx/IOrder.sol";
 import { Errors } from "../../utils/Errors.sol";
 import { GMXTypes } from "./GMXTypes.sol";
 import { GMXReader } from "./GMXReader.sol";
+import { console } from "forge-std/console.sol";
 
 /**
   * @title GMXChecks
@@ -56,8 +57,11 @@ library GMXChecks {
     GMXTypes.Store storage self,
     uint256 depositValue
   ) external view {
+    console.log("in checks : ", self.depositCache.depositParams.amt);
     if (self.status != GMXTypes.Status.Open)
       revert Errors.NotAllowedInCurrentVaultStatus();
+
+    console.log("check 1 : ", self.depositCache.depositParams.amt);
 
     if (self.depositCache.depositParams.executionFee < self.minExecutionFee)
       revert Errors.InsufficientExecutionFeeAmount();
@@ -65,18 +69,28 @@ library GMXChecks {
     if (!self.vault.isTokenWhitelisted(self.depositCache.depositParams.token))
       revert Errors.InvalidDepositToken();
 
+    console.log("check 2 : ", self.depositCache.depositParams.amt);
+
     if (self.depositCache.depositParams.amt == 0)
       revert Errors.InsufficientDepositAmount();
+
+    console.log("check 3 : ", self.depositCache.depositParams.amt);
 
     if (self.depositCache.depositParams.slippage < self.minSlippage)
       revert Errors.InsufficientSlippageAmount();
 
+    console.log("check 4 : ", self.depositCache.depositParams.amt);
     if (depositValue == 0)
       revert Errors.InsufficientDepositAmount();
+
+    console.log("check 5 : ", self.depositCache.depositParams.amt);
 
     if (depositValue < MINIMUM_VALUE)
       revert Errors.InsufficientDepositAmount();
 
+    console.log("check 6 : ", self.depositCache.depositParams.amt);
+    console.log("depositValue : ", depositValue);
+    console.log("additinal cappacity : ", GMXReader.additionalCapacity(self));
     if (depositValue > GMXReader.additionalCapacity(self))
       revert Errors.InsufficientLendingLiquidity();
   }
@@ -447,6 +461,6 @@ library GMXChecks {
     return (
       valueAfter >= valueBefore * (10000 - threshold) / 10000 &&
       valueAfter <= valueBefore * (10000 + threshold) / 10000
-    );
+    ); // @audit division
   }
 }
